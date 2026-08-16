@@ -4,3 +4,9 @@ google-auth-oauthlib
 beautifulsoup4
 openai
 python-dotenv
+fastapi
+uvicorn
+sqlalchemy
+psycopg2-binary
+python-multipart
+requests

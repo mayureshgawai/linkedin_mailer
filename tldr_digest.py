@@ -16,85 +16,16 @@ Run:
 """
 
 import argparse
-import base64
 import os
-import re
 from datetime import date
 
-from bs4 import BeautifulSoup
 from dotenv import load_dotenv
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
+
+from newsletter import DEFAULT_SENDER, extract_body, fetch_latest_email, get_gmail_service
 
 load_dotenv()
 
-SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
-CREDENTIALS_FILE = "credentials.json"
-TOKEN_FILE = "token.json"
-DEFAULT_SENDER = "tldrnewsletter.com"
 OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "anthropic/claude-sonnet-4.5")
-
-
-def get_gmail_service():
-    creds = None
-    if os.path.exists(TOKEN_FILE):
-        creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
-
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_FILE, SCOPES)
-            creds = flow.run_local_server(port=0)
-        with open(TOKEN_FILE, "w") as f:
-            f.write(creds.to_json())
-
-    return build("gmail", "v1", credentials=creds)
-
-
-def fetch_latest_email(service, sender: str, days: int):
-    query = f"from:{sender} newer_than:{days}d"
-    resp = service.users().messages().list(userId="me", q=query, maxResults=1).execute()
-    messages = resp.get("messages", [])
-    if not messages:
-        return None
-    return service.users().messages().get(userId="me", id=messages[0]["id"], format="full").execute()
-
-
-def _decode_part(data: str) -> str:
-    return base64.urlsafe_b64decode(data.encode("utf-8")).decode("utf-8", errors="ignore")
-
-
-def extract_body(message: dict) -> str:
-    payload = message["payload"]
-    parts = payload.get("parts") or [payload]
-
-    html_body, text_body = None, None
-    stack = list(parts)
-    while stack:
-        part = stack.pop()
-        if part.get("parts"):
-            stack.extend(part["parts"])
-            continue
-        mime = part.get("mimeType", "")
-        data = part.get("body", {}).get("data")
-        if not data:
-            continue
-        if mime == "text/html":
-            html_body = _decode_part(data)
-        elif mime == "text/plain":
-            text_body = _decode_part(data)
-
-    if html_body:
-        soup = BeautifulSoup(html_body, "html.parser")
-        for tag in soup(["script", "style"]):
-            tag.decompose()
-        text = soup.get_text("\n")
-        return re.sub(r"\n{3,}", "\n\n", text).strip()
-
-    return (text_body or "").strip()
 
 
 def summarize_with_claude(newsletter_text: str) -> str:
@@ -120,7 +51,7 @@ def summarize_with_claude(newsletter_text: str) -> str:
 
 def main():
     parser = argparse.ArgumentParser(description="Summarize today's TLDR newsletter with Claude.")
-    parser.add_argument("--sender", default="dan@tldrnewsletter.com", help="Sender address/domain to filter on")
+    parser.add_argument("--sender", default=DEFAULT_SENDER, help="Sender address/domain to filter on")
     parser.add_argument("--days", type=int, default=2, help="How many days back to search")
     parser.add_argument("--save", action="store_true", help="Save the summary to a dated .md file")
     args = parser.parse_args()

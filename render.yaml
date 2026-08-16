@@ -1,0 +1,45 @@
+services:
+  - type: web
+    name: linkedin-mailer-app
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_BASE_URL
+        sync: false
+      - key: RECIPIENT_EMAIL
+        sync: false
+      - key: BASE_URL
+        sync: false
+      - key: LINKEDIN_ACCESS_TOKEN
+        sync: false
+      - key: LINKEDIN_AUTHOR_URN
+        sync: false
+      - key: GMAIL_TOKEN_JSON
+        sync: false
+
+  - type: cron
+    name: linkedin-mailer-daily-fetch
+    runtime: python
+    plan: free
+    schedule: "30 4 * * *"
+    buildCommand: pip install -r requirements.txt
+    startCommand: python scripts/daily_fetch.py
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_BASE_URL
+        sync: false
+      - key: RECIPIENT_EMAIL
+        sync: false
+      - key: BASE_URL
+        sync: false
+      - key: GMAIL_TOKEN_JSON
+        sync: false
